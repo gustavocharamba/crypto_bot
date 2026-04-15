@@ -4,9 +4,6 @@ from indicators.statistical.kurtosis import get_kurtosis
 from indicators.statistical.parkinson import get_parkinson
 from indicators.statistical.autocorr import get_autocorr
 from indicators.statistical.vol_regime import get_vol_regime
-# Stat_Vol removida: substituída por Parkinson Vol (superior), ATR,
-# range_expansion e vol_regime — todas cobrem volatilidade de forma mais rica
-
 
 def get_statistical_indicators(df):
 
