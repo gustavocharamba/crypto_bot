@@ -1,10 +1,20 @@
 import pandas as pd
 import numpy as np
 
-from processing.pre_processing import get_preprocessing
 
+def get_target(df, window=5, mult_gain=1.5, mult_loss=0.5, horizon=3, spread_past=2, spread_future=2):
+    """
+    Cria um alvo binário para região de compra.
 
-def get_target(df, window=5, mult_gain=1.5, mult_loss = 0.5 ,horizon=3, spread_past=2, spread_future=2):
+    Raw_Target:
+        1  = gain tocado antes do stop dentro do horizonte
+       -1  = stop tocado antes do gain dentro do horizonte
+        0  = nenhuma barreira tocada
+
+    Target:
+        1 = região de compra ao redor de um Raw_Target positivo
+        0 = demais regiões
+    """
     df['Log_Ret'] = np.log(df['Close'] / df['Close'].shift(1))
     df['Volatility'] = df['Log_Ret'].rolling(window=window).std()
 
@@ -26,12 +36,19 @@ def get_target(df, window=5, mult_gain=1.5, mult_loss = 0.5 ,horizon=3, spread_p
         lower_barriers_dyn[i] = lower_barrier
 
         for j in range(1, horizon + 1):
-            future_price = df['Close'].iloc[i + j]
+            future_high = df['High'].iloc[i + j]
+            future_low = df['Low'].iloc[i + j]
 
-            if future_price >= upper_barrier:
+            hit_gain = future_high >= upper_barrier
+            hit_loss = future_low <= lower_barrier
+
+            if hit_gain and hit_loss:
+                raw_labels[i] = -1
+                break
+            elif hit_gain:
                 raw_labels[i] = 1
                 break
-            elif future_price <= lower_barrier:
+            elif hit_loss:
                 raw_labels[i] = -1
                 break
 
@@ -53,6 +70,7 @@ def get_target(df, window=5, mult_gain=1.5, mult_loss = 0.5 ,horizon=3, spread_p
 
     mask_neg = pd.concat(shifted_mins, axis=1).min(axis=1)
     df['Target'] = np.where(mask_neg == -1, -1, df['Target'])
+    df['Target'] = (df['Target'] == 1).astype(int)
 
     df['Stop_Gain_Dyn_Price'] = upper_barriers_dyn
     df['Stop_Loss_Dyn_Price'] = lower_barriers_dyn
@@ -61,14 +79,3 @@ def get_target(df, window=5, mult_gain=1.5, mult_loss = 0.5 ,horizon=3, spread_p
     df['Stop_Loss_Pct'] = (np.exp(-df['Volatility'] * mult_loss) - 1) * 100
 
     return df
-
-
-pd.set_option('display.max_columns', None)
-pd.set_option('display.width', 1000)
-
-df = pd.read_csv("../data/btc_1d.csv")
-df = get_target(df)
-df = get_preprocessing(df)
-
-print(df.tail(10))
-

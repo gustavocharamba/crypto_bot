@@ -5,66 +5,39 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import pandas as pd
 import numpy as np
 from processing.pre_processing import get_preprocessing
-from indicators.technical.loader_technical import get_technical_indicators
-from indicators.statistical.loader_statistical import get_statistical_indicators
-from indicators.market.loader_market import get_market_indicators
-from processing.target import get_target
-from validation.walk_forward import walk_forward
-from validation.evaluate_thresholds import evaluate_thresholds
-from validation.feature_importance import get_feature_importance
-from models.xgboost_model import xgboost_model
+from indicators.loader_technical import get_technical_indicators
+from indicators.loader_statistical import get_statistical_indicators
+from processing.get_target import get_target
+from models.xgboost_model import get_xgboost_model
 
 
-def run_pipeline_xgb(data_path, horizon, name, timeframe="1h"):
-    """Executa o pipeline e retorna (preds_series, y_real)."""
+def run_pipeline_xgb(data_path, horizon, name, timeframe):
     df = pd.read_csv(data_path)
     df = get_preprocessing(df)
     df = get_technical_indicators(df)
     df = get_statistical_indicators(df)
-    df = get_market_indicators(df, data_dir, timeframe=timeframe)
     df = get_target(df, horizon, name)
     df = df.dropna()
 
     y = df['Target']
     y_real = df['RealizedReturn']
-    X = df.drop(columns=['Target', 'Return', 'RealizedReturn', 'Open', 'High', 'Low',
+    X = df.drop(columns=['Target', 'Raw_Target', 'Return', 'RealizedReturn', 'Open', 'High', 'Low',
                           'Close', 'Adj Close', 'Volume', 'Date'], errors='ignore')
 
-    preds, avg_metrics, last_model = walk_forward(
-        xgboost_model, X, y, train_size=0.7, step_size=0.1, purge_window=horizon
-    )
+data_dir = "../data"
 
-    print(f"\n===== XGBoost Classification Performance: {name} =====")
-    print(avg_metrics)
-    print("=======================================")
-
-    if last_model is not None:
-        try:
-            fi = get_feature_importance(last_model, X, top_n=15)
-            print(f"\n--- Top 15 Features ({name}) ---")
-            print(fi.to_string(index=False))
-        except Exception as e:
-            print(f"  [Feature importance não disponível: {e}]")
-
-    # Retorna Series com índice datetime para alinhamento multi-TF
-    preds_series = pd.Series(preds, index=y.index, name=name)
-
-    return preds_series, y_real
-
-
-# ── Execução ─────────────────────────────────────────────────────────────────
-base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-data_dir  = os.path.join(base_dir, "data")
-
-preds_1h, y_real_1h = run_pipeline_xgb(os.path.join(data_dir, "btcusd_1h.csv"),  12, "1H", timeframe="1h")
-preds_4h, y_real_4h = run_pipeline_xgb(os.path.join(data_dir, "btcusd_4h.csv"),  18, "4H", timeframe="4h")
-preds_1d, y_real_1d = run_pipeline_xgb(os.path.join(data_dir, "btcusd_1d.csv"),   7, "1D", timeframe="1d")
+preds_30m, y_real_30m - run_pipeline_xgb(os.path.join(data_dir, "btc_30m.csv"), 240, "30M", "30m")
+preds_1h, y_real_1h = run_pipeline_xgb(os.path.join(data_dir, "btc_1d.csv"),  120, "1H", "1h")
+preds_2h, y_real_2h - run_pipeline_xgb(os.path.join(data_dir, "btc_2h.csv"), 60, "2H", "2h")
+preds_4h_real_4h - run_pipeline_xgb(os.path.join(data_dir, "btc_4h.csv"), 30, "4h", "4H")
+preds_1D, y_real_1D - run_pipeline_xgb(os.path.join(data_dir, "btc_30m.csv"), 5, "1D", "1d")
 
 # ── Alinhamento multi-timeframe ───────────────────────────────────────────────
-# Para cada candle 1H, associar a predição 4H mais recente (forward fill)
-# e a predição 1D mais recente.
-preds_4h_aligned = preds_4h.resample('1h').last().reindex(preds_1h.index, method='ffill')
-preds_1d_aligned = preds_1d.resample('1h').last().reindex(preds_1h.index, method='ffill')
+preds_1h_aligned = preds_1h.resample('30m').last().reindex(preds_1h.index, method='ffill')
+preds_2h_aligned = preds_2h.resample('30m').last().reindex(preds_2h.index, method='ffill')
+preds_4h_aligned = preds_4h.resample('30m').last().reindex(preds_4h.index, method='ffill')
+preds_1d_aligned = preds_1d.resample('30m').last().reindex(preds_1d.index, method='ffill')
+
 
 # Filtrar apenas onde há predições válidas em todos os TFs
 valid_1h = ~np.isnan(preds_1h)

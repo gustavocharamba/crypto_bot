@@ -1,16 +1,18 @@
 import pandas as pd
 
-def get_preprocessing(df):
 
-    pd.set_option('display.max_columns', None)
-    pd.set_option('display.width', 1000)
+def get_preprocessing(df):
+    df = df.copy()
 
     df['Datetime'] = pd.to_datetime(df['Datetime'])
     df.set_index('Datetime', inplace=True)
+    df.sort_index(inplace=True)
 
-    df.dropna(inplace=True)
-    df.reset_index(drop=True, inplace=True)
-    df['Volume'] = df['Volume'].fillna(0).astype(int)
+    price_cols = ['Open', 'High', 'Low', 'Close']
+    for col in price_cols + ['Volume']:
+        df[col] = pd.to_numeric(df[col], errors='coerce')
+
+    df['Volume'] = df['Volume'].fillna(0.0)
+    df.dropna(subset=price_cols, inplace=True)
 
     return df
-

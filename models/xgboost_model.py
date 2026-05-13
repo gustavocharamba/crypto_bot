@@ -32,7 +32,7 @@ class PlattScaler:
 
 
 
-def xgboost_model(X_train, y_train):
+def get_xgboost_model(X_train, y_train):
     n_pos = y_train.sum()
     n_neg = len(y_train) - n_pos
     spw = n_neg / n_pos if n_pos > 0 else 1.0
@@ -95,5 +95,4 @@ def xgboost_model(X_train, y_train):
     final_model.fit(X_tr, y_tr, eval_set=[(X_val, y_val)], verbose=False)
 
     return final_model
-
 
