@@ -4,8 +4,21 @@ import numpy as np
 from xgboost import XGBClassifier
 from sklearn.model_selection import RandomizedSearchCV, TimeSeriesSplit
 from sklearn.linear_model import LogisticRegression
+from sklearn.exceptions import UndefinedMetricWarning
 
 warnings.filterwarnings('ignore', message='.*DMatrix.*', category=UserWarning, module='xgboost')
+warnings.filterwarnings(
+    'ignore',
+    message='Only one class is present in y_true.*',
+    category=UndefinedMetricWarning,
+    module='sklearn.metrics._ranking'
+)
+warnings.filterwarnings(
+    'ignore',
+    message='One or more of the test scores are non-finite.*',
+    category=UserWarning,
+    module='sklearn.model_selection._search'
+)
 
 
 class PlattScaler:
@@ -44,7 +57,7 @@ def get_xgboost_model(X_train, y_train):
         eval_metric='logloss',
         tree_method='hist',
         device='cpu',
-        n_jobs=-1,
+        n_jobs=1,
         scale_pos_weight=spw
     )
 
@@ -87,12 +100,30 @@ def get_xgboost_model(X_train, y_train):
         eval_metric='logloss',
         tree_method='hist',
         device='cuda',
-        n_jobs=1,
+        n_jobs=-1,
         early_stopping_rounds=30,
         scale_pos_weight=spw,
         random_state=42
     )
-    final_model.fit(X_tr, y_tr, eval_set=[(X_val, y_val)], verbose=False)
+    try:
+        final_model.fit(X_tr, y_tr, eval_set=[(X_val, y_val)], verbose=False)
+    except Exception as exc:
+        warnings.warn(
+            f"Falha ao treinar XGBoost em CUDA ({exc}). Refit final usando CPU.",
+            RuntimeWarning,
+        )
+        final_model = XGBClassifier(
+            **best_params,
+            objective='binary:logistic',
+            eval_metric='logloss',
+            tree_method='hist',
+            device='cpu',
+            n_jobs=-1,
+            early_stopping_rounds=30,
+            scale_pos_weight=spw,
+            random_state=42
+        )
+        final_model.fit(X_tr, y_tr, eval_set=[(X_val, y_val)], verbose=False)
 
     return final_model
 
